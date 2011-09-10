@@ -3,6 +3,8 @@ package org.minexew.nanotracker;
 
 import java.io.*;
 import java.util.Vector;
+import javax.microedition.io.Connector;
+import javax.microedition.io.file.FileConnection;
 
 public class Track
 {
@@ -201,6 +203,43 @@ public class Track
         return instance;
     }
 
+    void load( byte[] record ) throws IOException
+    {
+        ByteArrayInputStream buffer = new ByteArrayInputStream( record );
+        DataInputStream dis = new DataInputStream( buffer );
+
+        byte version = dis.readByte();
+        name = dis.readUTF();
+        bpm = dis.readShort();
+
+        int numChannels = dis.readByte();
+        channels = new Vector( numChannels );
+
+        System.out.println( "Version " + version + " track file: " + name + " (" + numChannels + ") channels" );
+
+        for ( int i = 0; i < numChannels; i++ )
+        {
+            int instrument = dis.readShort();
+            int numNotes = dis.readInt();
+            boolean isMuted = false;
+
+            if ( version > 0 )
+                isMuted = dis.readBoolean();
+
+            Channel channel = addChannel( instrument, numNotes, isMuted );
+            System.out.println( "Channel " + i + ": " + numNotes + " notes" );
+
+            for ( int j = 0; j < numNotes; j++ )
+            {
+                int midi = dis.readByte();
+                int length = dis.readShort();
+                int velocity = dis.readByte();
+
+                channel.addNote( midi, length, velocity );
+            }
+        }
+    }
+    
     void load( int slot )
     {
         try
@@ -210,44 +249,40 @@ public class Track
             if ( record == null )
                 return;
 
-            ByteArrayInputStream buffer = new ByteArrayInputStream( record );
-            DataInputStream dis = new DataInputStream( buffer );
-
-            byte version = dis.readByte();
-            name = dis.readUTF();
-            bpm = dis.readShort();
-
-            int numChannels = dis.readByte();
-            channels = new Vector( numChannels );
-
-            System.out.println( "Version " + version + " track file: " + name + " (" + numChannels + ") channels" );
-
-            for ( int i = 0; i < numChannels; i++ )
-            {
-                int instrument = dis.readShort();
-                int numNotes = dis.readInt();
-                boolean isMuted = false;
-
-                if ( version > 0 )
-                    isMuted = dis.readBoolean();
-
-                Channel channel = addChannel( instrument, numNotes, isMuted );
-                System.out.println( "Channel " + i + ": " + numNotes + " notes" );
-
-                for ( int j = 0; j < numNotes; j++ )
-                {
-                    int midi = dis.readByte();
-                    int length = dis.readShort();
-                    int velocity = dis.readByte();
-
-                    channel.addNote( midi, length, velocity );
-                }
-            }
+            load( record );
         }
         catch ( Exception ex )
         {
             ex.printStackTrace();
         }
+    }
+    
+    boolean loadFile( String fileName )
+    {
+        try
+        {
+            FileConnection file = ( FileConnection ) Connector.open( "file:///" + fileName );
+
+            if ( !file.exists() )
+                 return false;
+
+            InputStream is = file.openInputStream();
+            
+            byte[] buffer = new byte [( int ) file.fileSize()];
+            is.read( buffer );
+            is.close();
+
+            file.close();
+            
+            load( buffer );
+            return true;
+        }
+        catch ( Exception ex )
+        {
+            ex.printStackTrace();
+        }
+        
+        return false;
     }
 
     void removeChannel( int channel )
@@ -259,43 +294,69 @@ public class Track
     {
         try
         {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            DataOutputStream dos = new DataOutputStream( buffer );
-
-            dos.writeByte( 1 );
-            dos.writeUTF( name );
-            dos.writeShort( bpm );
-            dos.writeByte( channels.size() );
-
-            for ( int i = 0; i < channels.size(); i++ )
-            {
-                Channel channel = getChannel( i );
-                dos.writeShort( channel.instrument );
-                dos.writeInt( channel.notes.size() );
-                dos.writeBoolean( channel.isMuted );
-
-                for ( int j = 0; j < channel.notes.size(); j++ )
-                {
-                    Channel.Note note = channel.getNote( j );
-
-                    if ( note.midi <= 0 )
-                        dos.writeByte( 0 );
-                    else
-                        dos.writeByte( note.midi );
-
-                    dos.writeShort( note.length );
-                    dos.writeByte( note.velocity );
-                }
-            }
-
-            byte record[] = buffer.toByteArray();
-            System.out.println( "Track size: " + record.length );
-
-            DataStorage.saveTrack( slot, record );
+            DataStorage.saveTrack( slot, serialize() );
         }
         catch ( Exception ex )
         {
             ex.printStackTrace();
         }
+    }
+    
+    void saveFile( String fileName )
+    {
+        try
+        {
+            FileConnection file = ( FileConnection ) Connector.open( "file:///" + fileName );
+
+            if ( !file.exists() )
+                 file.create();
+
+            OutputStream os = file.openOutputStream();
+            os.write( serialize() );
+            os.close();
+
+            file.close();
+        }
+        catch ( Exception ex )
+        {
+            ex.printStackTrace();
+        }
+    }
+    
+    byte[] serialize() throws IOException
+    {
+        if ( channels.isEmpty() )
+            return null;
+        
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream( buffer );
+
+        dos.writeByte( 1 );
+        dos.writeUTF( name );
+        dos.writeShort( bpm );
+        dos.writeByte( channels.size() );
+
+        for ( int i = 0; i < channels.size(); i++ )
+        {
+            Channel channel = getChannel( i );
+            dos.writeShort( channel.instrument );
+            dos.writeInt( channel.notes.size() );
+            dos.writeBoolean( channel.isMuted );
+
+            for ( int j = 0; j < channel.notes.size(); j++ )
+            {
+                Channel.Note note = channel.getNote( j );
+
+                if ( note.midi <= 0 )
+                    dos.writeByte( 0 );
+                else
+                    dos.writeByte( note.midi );
+
+                dos.writeShort( note.length );
+                dos.writeByte( note.velocity );
+            }
+        }
+
+        return buffer.toByteArray();
     }
 }

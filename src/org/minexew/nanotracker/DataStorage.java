@@ -66,6 +66,9 @@ public class DataStorage
 
     static void saveTrack( int slot, byte record[] ) throws RecordStoreException
     {
-        getTrackDb().setRecord( slot + 1, record, 0, record.length );
+        if ( record != null )
+            getTrackDb().setRecord( slot + 1, record, 0, record.length );
+        else
+            getTrackDb().setRecord( slot + 1, null, 0, 0 );
     }
 }

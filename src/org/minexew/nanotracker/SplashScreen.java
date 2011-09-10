@@ -8,6 +8,7 @@ import javax.microedition.lcdui.*;
 public class SplashScreen extends Canvas
 {
     static final int fps = 50;
+    float wait = 0.7f;
     float progress = 0.0f;
 
     Image splash;
@@ -71,13 +72,18 @@ public class SplashScreen extends Canvas
 
         public void run()
         {
-            progress += 1.0f / fps;
+            if ( wait > 0.0f )
+                wait -= 1.0f / fps;
+            else
+            {
+                progress += 2.0f / fps;
 
-            if ( progress >= 1.0f )
-                NtMidlet.getInstance().showMenu();
+                if ( progress >= 1.0f )
+                    NtMidlet.getInstance().showMenu();
 
-            repaint();
-            serviceRepaints();
+                repaint();
+                serviceRepaints();
+            }
         }
     }
 }

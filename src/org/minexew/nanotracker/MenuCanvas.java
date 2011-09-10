@@ -5,7 +5,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import javax.microedition.lcdui.*;
 
-public class MenuCanvas extends Canvas
+public class MenuCanvas extends Canvas implements CommandListener
 {
     // constants
     static final int fps = 30;
@@ -50,6 +50,14 @@ public class MenuCanvas extends Canvas
         }
     }
 
+    public void commandAction( Command command, Displayable displayable )
+    {
+        if ( command.getCommandType() == Command.OK )
+            Track.getInstance().name = ( ( TextBox ) displayable ).getString();
+
+        NtMidlet.getInstance().showMenu();
+    }
+    
     protected void hideNotify()
     {
         if ( timer != null )
@@ -152,6 +160,16 @@ public class MenuCanvas extends Canvas
                         overlay = new InputDlg( "Track Tempo:", MenuOverlay.trackTempo, Track.getInstance().bpm );
                         autoClose = false;
                     }
+                    else if ( result == 1 )
+                    {
+                        TextBox textBox = new TextBox( "Track title:", Track.getInstance().name, 8, TextField.NON_PREDICTIVE );
+
+                        textBox.addCommand( new Command( "OK", Command.OK, 1 ) );
+                        textBox.addCommand( new Command( "Cancel", Command.CANCEL, 1 ) );
+                        textBox.setCommandListener( this );
+
+                        Display.getDisplay( NtMidlet.getInstance() ).setCurrent( textBox );
+                    }
                 }
                 else if ( overlay.getType() == MenuOverlay.trackTempo && result > 0 )
                     Track.getInstance().bpm = result;
@@ -206,24 +224,31 @@ public class MenuCanvas extends Canvas
     protected void paint( Graphics g )
     {
         int width = getWidth(), height = getHeight();
+        int diagonal = ( int ) Math.sqrt( ( width * width + height * height ) / 4 );
 
         g.setColor( 0x000000 );
         g.fillRect( 0, logo.getHeight(), width, height - logo.getHeight() );
         g.drawImage( logo, width / 2, 0, Graphics.HCENTER | Graphics.TOP );
 
+        g.setColor( 0xFFFFFF );
+        font.drawString( g, width - 4, height - 4, "v1.1", 1, Font.right, Font.bottom );
+        
         final float step = ( float )( Math.PI * 2f / width );
         final float y0 = height - 40f;
 
         g.setColor( 0x404040 );
 
+        int radius = ( int )( animPhase * diagonal / Math.PI / 2 );
+        g.drawArc( width / 2 - radius, height / 2 - radius, radius * 2, radius * 2, 0, 360 );
+        
         for ( int x = 0; x < width; x += 10 )
             g.fillRect( x + 3, ( int )( y0 + Math.sin( ( Math.PI * 2 - animPhase ) * 2 + step * x ) * 20f ) + 3, 4, 4 );
-
+        
         g.setColor( 0x808080 );
 
         for ( int x = 0; x < width; x += 10 )
         {
-            int a = ( int )Math.abs( Math.sin( animPhase + step * x ) * 8 );
+            int a = ( int )Math.abs( Math.sin( animPhase * 4 + step * x ) * 8 );
             g.fillRect( x + 5 - a / 2, ( int )( y0 + Math.sin( Math.PI + animPhase + step * x ) * 10f ) + 5 - a / 2, a, a );
         }
 
@@ -402,7 +427,7 @@ public class MenuCanvas extends Canvas
     {
         FileMenu()
         {
-            super( "- File -", new String[] { "New", "Load...", "Save", "Save To...", "Save Midi (beta)", "Exit" } );
+            super( "- File -", new String[] { "New", "Load...", "Save", "Save To...", "Export Midi", "---", "Save File (beta)", "Load File (beta)", "---", "Exit" } );
         }
 
         void selected( int index )
@@ -424,8 +449,12 @@ public class MenuCanvas extends Canvas
             }
             else if ( items[index].toLowerCase().equals( "save to..." ) )
                 saveTo();
-            else if ( items[index].toLowerCase().equals( "save midi (beta)" ) )
+            else if ( items[index].toLowerCase().equals( "export midi" ) )
                 Player.saveMidi( Track.getInstance(), "c:/music/" + Track.getInstance().name + ".mid" );
+            else if ( items[index].toLowerCase().equals( "save file (beta)" ) )
+                Track.getInstance().saveFile( "c:/music/nanoTrack.mid" );
+            else if ( items[index].toLowerCase().equals( "load file (beta)" ) )
+                Track.getInstance().loadFile( "c:/music/nanoTrack.mid" );
             else if( items[index].toLowerCase().equals( "exit" ) )
                 NtMidlet.getInstance().destroyApp( true );
         }
